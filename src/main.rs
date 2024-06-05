@@ -33,18 +33,3 @@ fn load_words(path: &str) -> serde_json::Value {
     let json: serde_json::Value = serde_json::from_str(content.as_str()).expect("JSON was not well-formatted");
     json
 }
-
-/*
-fn load_words(path: &str) -> Result<serde_json::Value, std::io::Error> {
-    let json = match fs::read_to_string(path) {
-        Ok(content) => {
-            let json: serde_json::Value = serde_json::from_str(content.as_str()).expect("JSON was not well-formatted");
-            json
-        },
-        Err(e) => {
-            return Err(e)
-        },
-    };
-    Ok(json)
-}
-*/
