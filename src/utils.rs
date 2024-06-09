@@ -1,10 +1,30 @@
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Dir {
     HOR,
     VER,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct WordPos {
+    pub x: usize,
+    pub y: usize,
+    pub dir: Dir,
+    pub len: usize,
+}
+
+impl WordPos {
+    pub fn new(x: usize, y: usize, dir: Dir, len: usize) -> WordPos {
+        WordPos {
+            x,
+            y,
+            dir,
+            len,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Board {
     width: usize,
     height: usize,
@@ -26,17 +46,17 @@ impl Board {
     }
 
     // Get word at given coordinate with dir and len
-    pub fn _get_word(&self, x: usize, y: usize, dir: Dir, len: usize) -> String {
+    pub fn get_word(&self, word_pos: &WordPos) -> String {
         let mut word = String::new();
-        match dir {
+        match word_pos.dir {
             Dir::HOR => {
-                for i in 0..len {
-                    word.push(*self.arr.get(self.width * y + x + i).unwrap());
+                for i in 0..word_pos.len {
+                    word.push(*self.arr.get(self.width * word_pos.y + word_pos.x + i).unwrap());
                 }
             },
             Dir::VER => {
-                for i in 0..len {
-                    word.push(*self.arr.get(self.width * (y + i) + x).unwrap());
+                for i in 0..word_pos.len {
+                    word.push(*self.arr.get(self.width * (word_pos.y + i) + word_pos.x).unwrap());
                 }
             },
         }
@@ -49,17 +69,17 @@ impl Board {
     }
 
     // Set word at given coordinate with dir and len
-    pub fn set_word(&mut self, x: usize, y: usize, dir: Dir, len: usize, word: &str) {
+    pub fn set_word(&mut self, word_pos: &WordPos, word: &str) {
         let mut word_chars = word.chars();
-        match dir {
+        match word_pos.dir {
             Dir::HOR => {
-                for i in 0..len {
-                    self.arr[self.width * y + x + i] = word_chars.next().unwrap();
+                for i in 0..word_pos.len {
+                    self.arr[self.width * word_pos.y + word_pos.x + i] = word_chars.next().unwrap();
                 }
             },
             Dir::VER => {
-                for i in 0..len {
-                    self.arr[self.width * (y + i) + x] = word_chars.next().unwrap();
+                for i in 0..word_pos.len {
+                    self.arr[self.width * (word_pos.y + i) + word_pos.x] = word_chars.next().unwrap();
                 }
             },
         }
@@ -71,8 +91,8 @@ impl Board {
     }
 
     // Get the elements (x, y, dir, len) representing words to fill in the board
-    pub fn get_words_tofill(&self) -> Vec<(usize, usize, Dir, usize)> {
-        let mut elems: Vec<(usize, usize, Dir, usize)> = Vec::new();
+    pub fn get_words_pos(&self) -> Vec<WordPos> {
+        let mut elems: Vec<WordPos> = Vec::new();
 
         let mut len;
         let mut xstart;
@@ -90,7 +110,7 @@ impl Board {
                 }
                 else {
                     if len > 1 {
-                        elems.push((xstart, ystart, Dir::HOR, len));
+                        elems.push(WordPos::new(xstart, ystart, Dir::HOR, len));
                     }
                     len = 0;
                     xstart = i+1;
@@ -98,7 +118,7 @@ impl Board {
                 }
             }
             if len > 1 {
-                elems.push((xstart, ystart, Dir::HOR, len));
+                elems.push(WordPos::new(xstart, ystart, Dir::HOR, len));
             }
         }
 
@@ -114,7 +134,7 @@ impl Board {
                 }
                 else {
                     if len > 1 {
-                        elems.push((xstart, ystart, Dir::VER, len));
+                        elems.push(WordPos::new(xstart, ystart, Dir::VER, len));
                     }
                     len = 0;
                     xstart = i;
@@ -122,7 +142,7 @@ impl Board {
                 }
             }
             if len > 1 {
-                elems.push((xstart, ystart, Dir::VER, len));
+                elems.push(WordPos::new(xstart, ystart, Dir::VER, len));
             }
         }
 
