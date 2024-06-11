@@ -30,11 +30,9 @@ fn main() {
     println!("Time to create the map (len->words): {} ms", time_maplen.elapsed().unwrap().as_millis());
 
     // Board
-    const SIZE: usize = 4;
+    const SIZE: usize = 5;
     let mut board = Board::new(SIZE, SIZE);
-    //board.set_word(&WordPos::new(0, 0, Dir::HOR, 4), "CIAO");
-    //board.set_word(&WordPos::new(2, 0, Dir::VER, 4), "TEST");
-    //board.set(0, 2, '#');
+    //board.set(2, 2, '#');
 
     // Create list of missing word positions
     let mut words_pos = board.get_words_pos();
@@ -79,32 +77,9 @@ fn load_words(path: &str) -> serde_json::Value {
 }
 
 
-fn get_valid_words(words: &Vec<&str>, word_board: &str) -> usize {
-    words
-        .into_iter()
-        .filter(|word| is_valid(word_board, word))
-        .count()
-}
-
-
-fn is_valid(word_board: &str, word: &str) -> bool {
-    let mut word_chars = word.chars();
-    for c in word_board.chars() {
-        let c2 = word_chars.next().unwrap();
-        if c == ' ' {
-            continue;
-        }
-        if c != c2 {
-            return false;
-        }
-    }
-    true
-}
-
-
 fn fill_board<'a>(board: &mut Board, words_len: &HashMap<usize, Vec<&'a str>>, words_pos: &[WordPos],
                     words_intersect: &HashMap<&WordPos, Vec<&WordPos>>, used_words: &mut Vec<&'a str>) -> bool {
-    
+    board.print();
     let mut valid = false;
     if words_pos.len() > 0 {
         let current_word_pos = words_pos.last().unwrap();
@@ -125,7 +100,7 @@ fn fill_board<'a>(board: &mut Board, words_len: &HashMap<usize, Vec<&'a str>>, w
             let mut sol = true;
             for word_pos_intersect in words_intersect.get(current_word_pos).unwrap() {
                 let word_board_intersect = board.get_word(word_pos_intersect);
-                if get_valid_words(available_words, word_board_intersect.as_str()) == 0 {
+                if get_valid_words(words_len.get(&word_pos_intersect.len).unwrap(), word_board_intersect.as_str()) == 0 {
                     sol = false;
                     break;
                 }
@@ -152,8 +127,31 @@ fn fill_board<'a>(board: &mut Board, words_len: &HashMap<usize, Vec<&'a str>>, w
 }
 
 
+fn get_valid_words(words: &Vec<&str>, word_board: &str) -> usize {
+    words
+        .into_iter()
+        .filter(|word| is_valid(word_board, word))
+        .count()
+}
+
+
+fn is_valid(word_board: &str, word: &str) -> bool {
+    let mut word_chars = word.chars();
+    for c in word_board.chars() {
+        let c2 = word_chars.next().unwrap();
+        if c == ' ' {
+            continue;
+        }
+        if c != c2 {
+            return false;
+        }
+    }
+    true
+}
+
+
 fn print_definitions(board: &Board, words_pos: &Vec<WordPos>, json: &serde_json::Value) {
-    println!("Definizioni:");
+    println!("\nDefs:");
     for word_pos in words_pos {
         let word = board.get_word(word_pos);
         let defs = json.get(word).unwrap().as_array().unwrap();
