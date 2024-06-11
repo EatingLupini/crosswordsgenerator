@@ -1,11 +1,11 @@
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Dir {
     HOR,
     VER,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct WordPos {
     pub x: usize,
     pub y: usize,
@@ -64,7 +64,7 @@ impl Board {
     }
 
     // Set char at given coordinate
-    pub fn set(&mut self, x: usize, y: usize, val: char) {
+    pub fn _set(&mut self, x: usize, y: usize, val: char) {
         self.arr[self.width * y + x] = val;
     }
 
