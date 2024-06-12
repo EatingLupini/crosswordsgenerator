@@ -7,6 +7,9 @@ use utils::{Board, WordPos, Dir};
 
 mod utils;
 
+static EMPTY_VEC: Vec<&str> = Vec::new();
+
+
 fn main() {
     println!("Crosswords Generator v0.1");
 
@@ -26,9 +29,9 @@ fn main() {
 
 
     // Board
-    const SIZE: usize = 6;
+    const SIZE: usize = 7;
     let mut board = Board::new(SIZE, SIZE);
-    // board.set(0, 0, '#');
+    board.set(0, 0, '#');
     // board.set(1, 1, '#');
     // board.set(2, 2, '#');
     // board.set(3, 3, '#');
@@ -65,13 +68,20 @@ fn main() {
     // fill board
     let time_fill = SystemTime::now();
     let mut visited_nodes: usize = 0;
-    fill_board(&mut board, &words_len, &words_pos, &words_intersect, &mut Vec::new(), &mut HashMap::new(), &mut visited_nodes);
-    board.print();
-    println!("Visited nodes: {}", visited_nodes);
-    println!("Time to fill the board : {} ms", time_fill.elapsed().unwrap().as_millis());
+    let found = fill_board(&mut board, &words_len, &words_pos, &words_intersect, &mut Vec::new(), &mut HashMap::new(), &mut visited_nodes);
+    if found {
+        board.print();
+        println!("Time to fill the board: {} ms", time_fill.elapsed().unwrap().as_millis());
 
-    // print definitions
-    print_definitions(&board, &words_pos, &json);
+        // print definitions
+        print_definitions(&board, &words_pos, &json);
+    }
+    else {
+        println!("No solution found in: {} ms", time_fill.elapsed().unwrap().as_millis());
+    }
+
+    println!("\nSTATS");
+    println!("Visited nodes: {}", visited_nodes);
 }
 
 
@@ -89,11 +99,10 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
     if words_pos.is_empty() {
         return true;
     }
-
     let mut valid = false;
     let current_word_pos = words_pos.last().unwrap();
     let current_word_board = board.get_word(current_word_pos);
-    let valid_words = get_valid_words(words_len.get(&current_word_pos.len).unwrap(), current_word_board.as_str());
+    let valid_words = get_valid_words(words_len.get(&current_word_pos.len).unwrap_or(&EMPTY_VEC), current_word_board.as_str());
     //let valid_words = get_valid_words_cache(words_map_cache, words_len.get(&current_word_pos.len).unwrap(), &current_word_board);
 
     for current_word in valid_words {
@@ -102,6 +111,11 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
         }
         board.set_word(current_word_pos, current_word);
         *visited_nodes += 1;
+
+        if *visited_nodes % 10_000_000 == 0 {
+            board.print();
+            println!("Visited nodes: {}M\n", *visited_nodes / 1_000_000);
+        }
 
         // check that exists at least one intersecting word for each letter of the current word
         let mut sol = true;
@@ -178,7 +192,7 @@ fn is_valid(word_board: &str, word: &str) -> bool {
 
 
 fn print_definitions(board: &Board, words_pos: &Vec<WordPos>, json: &serde_json::Value) {
-    println!("\nDefs:");
+    println!("\nDEFS");
     for word_pos in words_pos {
         let word = board.get_word(word_pos);
         let defs = json.get(word).unwrap().as_array().unwrap();
