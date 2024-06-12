@@ -9,8 +9,7 @@ mod utils;
 
 fn main() {
     println!("Crosswords Generator v0.1");
-    //let random_index = rand::thread_rng().gen_range(0..100);
-    
+
     // Load json words and definitions
     let time_json = SystemTime::now();
     let json = load_words("./data/words.txt");
@@ -30,9 +29,16 @@ fn main() {
     println!("Time to create the map (len->words): {} ms", time_maplen.elapsed().unwrap().as_millis());
 
     // Board
-    const SIZE: usize = 5;
+    const SIZE: usize = 7;
     let mut board = Board::new(SIZE, SIZE);
-    //board.set(2, 2, '#');
+    // board.set(0, 0, '#');
+    // board.set(1, 1, '#');
+    // board.set(2, 2, '#');
+    // board.set(3, 3, '#');
+    // board.set(4, 4, '#');
+    // board.set(5, 5, '#');
+    // board.set(6, 6, '#');
+    
 
     // Create list of missing word positions
     let mut words_pos = board.get_words_pos();
@@ -61,7 +67,7 @@ fn main() {
 
     // fill board
     let time_fill = SystemTime::now();
-    fill_board(&mut board, &words_len, &words_pos, &words_intersect, &mut Vec::new());
+    fill_board(&mut board, &words_len, &words_pos, &words_intersect, &mut Vec::new(), &mut HashMap::new());
     board.print();
     println!("Time to fill the board : {} ms", time_fill.elapsed().unwrap().as_millis());
 
@@ -77,21 +83,18 @@ fn load_words(path: &str) -> serde_json::Value {
 }
 
 
-fn fill_board<'a>(board: &mut Board, words_len: &HashMap<usize, Vec<&'a str>>, words_pos: &[WordPos],
-                    words_intersect: &HashMap<&WordPos, Vec<&WordPos>>, used_words: &mut Vec<&'a str>) -> bool {
-    board.print();
+fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>, words_pos: &[WordPos],
+                    words_intersect: &HashMap<&WordPos, Vec<&WordPos>>, words_used: &mut Vec<&'a str>,
+                    words_map_cache: &mut HashMap<String, Vec<&'a str>>) -> bool {
+    //board.print();
     let mut valid = false;
     if words_pos.len() > 0 {
         let current_word_pos = words_pos.last().unwrap();
-        let available_words = words_len.get(&current_word_pos.len).unwrap();
-
         let current_word_board = board.get_word(current_word_pos);
-        let valid_words = available_words
-            .into_iter()
-            .filter(|word| is_valid(current_word_board.as_str(), word));
+        let valid_words = get_valid_words(words_len.get(&current_word_pos.len).unwrap(), &current_word_board);
         
         for current_word in valid_words {
-            if used_words.contains(current_word) {
+            if words_used.contains(&current_word) {
                 continue;
             }
             board.set_word(current_word_pos, current_word);
@@ -100,19 +103,32 @@ fn fill_board<'a>(board: &mut Board, words_len: &HashMap<usize, Vec<&'a str>>, w
             let mut sol = true;
             for word_pos_intersect in words_intersect.get(current_word_pos).unwrap() {
                 let word_board_intersect = board.get_word(word_pos_intersect);
-                if get_valid_words(words_len.get(&word_pos_intersect.len).unwrap(), word_board_intersect.as_str()) == 0 {
+                let words_intersect_num: usize;
+
+                let valid_words_cached = words_map_cache.get(&word_board_intersect);
+                if valid_words_cached.is_some() {
+                    words_intersect_num = valid_words_cached.unwrap().len();
+                }
+                else {
+                    let valid_words_intersect = get_valid_words(words_len.get(&word_pos_intersect.len).unwrap(), word_board_intersect.as_str());
+                    words_intersect_num = valid_words_intersect.len();
+
+                    words_map_cache.insert(word_board_intersect, valid_words_intersect);
+                }
+
+                if words_intersect_num == 0 {
                     sol = false;
                     break;
                 }
             }
             
             if sol {
-                used_words.push(&current_word);
-                valid = fill_board(board, words_len, &words_pos[..words_pos.len() - 1], words_intersect, used_words);
+                words_used.push(&current_word);
+                valid = fill_board(board, words_len, &words_pos[..words_pos.len() - 1], words_intersect, words_used, words_map_cache);
                 if valid {
                     break;
                 }
-                used_words.pop();
+                words_used.pop();
             }
         }
 
@@ -127,11 +143,17 @@ fn fill_board<'a>(board: &mut Board, words_len: &HashMap<usize, Vec<&'a str>>, w
 }
 
 
-fn get_valid_words(words: &Vec<&str>, word_board: &str) -> usize {
-    words
-        .into_iter()
-        .filter(|word| is_valid(word_board, word))
-        .count()
+fn get_valid_words<'a>(words: &'a Vec<&str>, word_board: &str) -> Vec<&'a str> {
+    let iter = words
+        .iter()
+        .filter(|word| is_valid(word_board, word));
+
+    let mut res: Vec<&str> = Vec::new();
+    for word in iter {
+        res.push(word);
+    }
+
+    res
 }
 
 
