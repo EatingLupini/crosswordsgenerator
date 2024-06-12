@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 use std::fs;
 use std::time::SystemTime;
+
 use rand::Rng;
+use rand::thread_rng;
+use rand::seq::SliceRandom;
 
 use utils::{Board, WordPos, Dir};
 
@@ -25,8 +28,12 @@ fn main() {
         let len = key.len();
         words_len.entry(len).or_insert_with(Vec::new).push(key);
     }
+    // Randomize words
+    for words in words_len.values_mut() {
+        words.shuffle(&mut thread_rng());
+    }
     println!("Time to create the map (len->words): {} ms", time_maplen.elapsed().unwrap().as_millis());
-
+    
 
     // Board
     const SIZE: usize = 7;
