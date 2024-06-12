@@ -29,7 +29,7 @@ fn main() {
     println!("Time to create the map (len->words): {} ms", time_maplen.elapsed().unwrap().as_millis());
 
     // Board
-    const SIZE: usize = 7;
+    const SIZE: usize = 6;
     let mut board = Board::new(SIZE, SIZE);
     // board.set(0, 0, '#');
     // board.set(1, 1, '#');
@@ -67,8 +67,10 @@ fn main() {
 
     // fill board
     let time_fill = SystemTime::now();
-    fill_board(&mut board, &words_len, &words_pos, &words_intersect, &mut Vec::new(), &mut HashMap::new());
+    let mut visited_nodes: usize = 0;
+    fill_board(&mut board, &words_len, &words_pos, &words_intersect, &mut Vec::new(), &mut HashMap::new(), &mut visited_nodes);
     board.print();
+    println!("Visited nodes: {}", visited_nodes);
     println!("Time to fill the board : {} ms", time_fill.elapsed().unwrap().as_millis());
 
     // print definitions
@@ -85,7 +87,7 @@ fn load_words(path: &str) -> serde_json::Value {
 
 fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>, words_pos: &[WordPos],
                     words_intersect: &HashMap<&WordPos, Vec<&WordPos>>, words_used: &mut Vec<&'a str>,
-                    words_map_cache: &mut HashMap<String, Vec<&'a str>>) -> bool {
+                    words_map_cache: &mut HashMap<String, Vec<&'a str>>, visited_nodes: &mut usize) -> bool {
     //board.print();
     let mut valid = false;
     if words_pos.len() > 0 {
@@ -98,6 +100,7 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
                 continue;
             }
             board.set_word(current_word_pos, current_word);
+            *visited_nodes += 1;
 
             // check that exists at least one intersecting word for each letter of the current word
             let mut sol = true;
@@ -124,7 +127,7 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
             
             if sol {
                 words_used.push(&current_word);
-                valid = fill_board(board, words_len, &words_pos[..words_pos.len() - 1], words_intersect, words_used, words_map_cache);
+                valid = fill_board(board, words_len, &words_pos[..words_pos.len() - 1], words_intersect, words_used, words_map_cache, visited_nodes);
                 if valid {
                     break;
                 }
