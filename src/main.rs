@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use std::time::SystemTime;
 
@@ -75,7 +76,9 @@ fn main() {
     // fill board
     let time_fill = SystemTime::now();
     let mut visited_nodes: usize = 0;
-    let found = fill_board(&mut board, &words_len, &words_pos, &words_intersect, &mut Vec::new(), &mut HashMap::new(), &mut visited_nodes);
+    let found = fill_board(&mut board, &words_len, &words_pos, &words_intersect,
+                        &mut HashSet::with_capacity(words_pos.len()),
+                        &mut HashMap::new(), &mut visited_nodes);
     if found {
         board.print();
         println!("Time to fill the board: {} ms", time_fill.elapsed().unwrap().as_millis());
@@ -100,9 +103,8 @@ fn load_words(path: &str) -> serde_json::Value {
 
 
 fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>, words_pos: &[WordPos],
-                    words_intersect: &HashMap<&WordPos, Vec<&WordPos>>, words_used: &mut Vec<&'a str>,
+                    words_intersect: &HashMap<&WordPos, Vec<&WordPos>>, words_used: &mut HashSet<&'a str>,
                     words_map_cache: &mut HashMap<String, Vec<&'a str>>, visited_nodes: &mut usize) -> bool {
-    //board.print();
     if words_pos.is_empty() {
         return true;
     }
@@ -148,12 +150,12 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
         }
         
         if sol {
-            words_used.push(&current_word);
+            words_used.insert(&current_word);
             valid = fill_board(board, words_len, &words_pos[..words_pos.len() - 1], words_intersect, words_used, words_map_cache, visited_nodes);
             if valid {
                 break;
             }
-            words_used.pop();
+            words_used.remove(&current_word);
         }
     }
 
