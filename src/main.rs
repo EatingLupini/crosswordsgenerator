@@ -7,6 +7,8 @@ use rand::Rng;
 use rand::thread_rng;
 use rand::seq::SliceRandom;
 
+use clap::{command, Arg};
+
 use utils::{Board, WordPos, Dir};
 
 mod utils;
@@ -15,7 +17,59 @@ static EMPTY_VEC: Vec<&str> = Vec::new();
 
 
 fn main() {
+    // Check arguments
+    let args = command!().about("Crosswords Generator v0.1\nSmall application to fill a provided Crossword Board.")
+    .arg(
+        Arg::new("size").short('s').long("size")
+        .help("Size of the board.")
+        .num_args(2)
+        .value_parser(clap::value_parser!(usize))
+        .default_values(["4", "4"])
+        .conflicts_with("board")
+    )
+    .arg(
+        Arg::new("board").short('b').long("board")
+        .help("Path to a board.")
+    )
+    .arg(
+        Arg::new("shuffle").short('x').long("shuffle")
+        .help("Shuffle the words before filling the board.")
+        .num_args(0..=1)
+        .value_parser(["true", "false"])
+        .default_value("false")
+        .default_missing_value("true")
+    )
+    .arg(
+        Arg::new("repeat-words").short('r').long("repeat-words")
+        .help("Allow words to be repeated.")
+        .num_args(0..=1)
+        .value_parser(["true", "false"])
+        .default_value("false")
+        .default_missing_value("true")   
+    )
+    .get_matches();
+
+
+    // CROSSWORDS GENERATOR
     println!("Crosswords Generator v0.1");
+
+    // Settings
+    let size: Vec<usize> = args.get_many("size").unwrap().copied().collect();
+    let board_w = *size.get(0).unwrap();
+    let board_h = *size.get(1).unwrap();
+    let board_path = args.get_one::<String>("board");
+    let shuffle = args.get_one::<String>("shuffle").unwrap()
+        .parse::<bool>().unwrap_or_else(|e| panic!("Argument 'shuffle' error: {}", e));
+    let rep_words = args.get_one::<String>("repeat-words").unwrap()
+        .parse::<bool>().unwrap_or_else(|e| panic!("Argument 'repeat-words' error: {}", e));
+    
+    println!("\nSettings:");
+    println!("- size: {:?}", size);
+    println!("- board: {:?}", board_path);
+    println!("- shuffle: {}", shuffle);
+    println!("- repeat-words: {}", rep_words);
+    println!();
+
 
     // Load json words and definitions
     let time_json = SystemTime::now();
@@ -30,23 +84,17 @@ fn main() {
         words_len.entry(len).or_insert_with(Vec::new).push(key);
     }
     // Randomize words
-    for words in words_len.values_mut() {
-        words.shuffle(&mut thread_rng());
+    if shuffle {
+        for words in words_len.values_mut() {
+            words.shuffle(&mut thread_rng());
+        }
     }
     println!("Time to create the map (len->words): {} ms", time_maplen.elapsed().unwrap().as_millis());
     
 
     // Board
-    const SIZE: usize = 7;
-    let mut board = Board::new(SIZE, SIZE);
+    let mut board = Board::new(board_w, board_h);
     // board.set(0, 0, '#');
-    // board.set(1, 1, '#');
-    // board.set(2, 2, '#');
-    // board.set(3, 3, '#');
-    // board.set(4, 4, '#');
-    // board.set(5, 5, '#');
-    // board.set(6, 6, '#');
-    
 
     // Create list of missing word positions
     let mut words_pos = board.get_words_pos();
@@ -78,7 +126,8 @@ fn main() {
     let mut visited_nodes: usize = 0;
     let found = fill_board(&mut board, &words_len, &words_pos, &words_intersect,
                         &mut HashSet::with_capacity(words_pos.len()),
-                        &mut HashMap::new(), &mut visited_nodes);
+                        &mut HashMap::new(), &mut visited_nodes,
+                        rep_words);
     if found {
         board.print();
         println!("Time to fill the board: {} ms", time_fill.elapsed().unwrap().as_millis());
@@ -102,45 +151,36 @@ fn load_words(path: &str) -> serde_json::Value {
 }
 
 
-/*fn test(words_map: &mut HashMap<String, Vec<&str>>, aw: &str) {
-    let words = words_map.get(aw).unwrap().clone();
-    for word in words {
-        let k = format!("mdd_{aw}");
-        match words_map.get_mut(&k) {
-            Some(v) => {
-                v.push(word);
-            },
-            None => {
-                words_map.insert(k, Vec::new());
-            },
-        }
-    }
-}*/
-
-
 fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>, words_pos: &[WordPos],
                     words_intersect: &HashMap<&WordPos, Vec<&WordPos>>, words_used: &mut HashSet<&'a str>,
-                    words_map_cache: &mut HashMap<String, Vec<&'a str>>, visited_nodes: &mut usize) -> bool {
+                    words_map_cache: &mut HashMap<String, Vec<&'a str>>, visited_nodes: &mut usize,
+                    rep_words: bool) -> bool {
     if words_pos.is_empty() {
         return true;
     }
     let mut valid = false;
     let current_word_pos = words_pos.last().unwrap();
     let current_word_board = board.get_word(current_word_pos);
-    //let valid_words = get_valid_words(words_len.get(&current_word_pos.len).unwrap_or(&EMPTY_VEC), current_word_board.as_str());
-    //let valid_words = get_valid_words_cache(words_map_cache, words_len.get(&current_word_pos.len).unwrap(), &current_word_board);
 
+    // get valid words from cache if possible otherwise update cache
     let valid_words = words_map_cache.entry(current_word_board.clone()).or_insert_with(|| {
         get_valid_words(words_len.get(&current_word_pos.len).unwrap_or(&EMPTY_VEC), current_word_board.as_str())
     }).clone();
 
+    // loop thorugh all valid words
     for current_word in valid_words {
-        if words_used.contains(current_word) {
-            continue;
+        // check if the word has been used
+        if !rep_words {
+            if words_used.contains(current_word) {
+                continue;
+            }
         }
-        board.set_word(current_word_pos, current_word);
-        *visited_nodes += 1;
 
+        // set word in the board
+        board.set_word(current_word_pos, current_word);
+
+        // debug
+        *visited_nodes += 1;
         if *visited_nodes % 10_000_000 == 0 {
             board.print();
             println!("Visited nodes: {}M\n", *visited_nodes / 1_000_000);
@@ -170,13 +210,20 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
             }
         }
         
+        // continue recursively if there are intersecting words for each letter of the current word
         if sol {
-            words_used.insert(&current_word);
-            valid = fill_board(board, words_len, &words_pos[..words_pos.len() - 1], words_intersect, words_used, words_map_cache, visited_nodes);
+            if !rep_words {
+                words_used.insert(current_word);
+            }
+
+            valid = fill_board(board, words_len, &words_pos[..words_pos.len() - 1], words_intersect,
+                                words_used, words_map_cache, visited_nodes, rep_words);
             if valid {
                 break;
             }
-            words_used.remove(current_word);
+            if !rep_words {
+                words_used.remove(current_word);
+            }
         }
     }
 
