@@ -39,7 +39,7 @@ fn main() {
     // Board
     const SIZE: usize = 7;
     let mut board = Board::new(SIZE, SIZE);
-    board.set(0, 0, '#');
+    // board.set(0, 0, '#');
     // board.set(1, 1, '#');
     // board.set(2, 2, '#');
     // board.set(3, 3, '#');
@@ -102,6 +102,22 @@ fn load_words(path: &str) -> serde_json::Value {
 }
 
 
+/*fn test(words_map: &mut HashMap<String, Vec<&str>>, aw: &str) {
+    let words = words_map.get(aw).unwrap().clone();
+    for word in words {
+        let k = format!("mdd_{aw}");
+        match words_map.get_mut(&k) {
+            Some(v) => {
+                v.push(word);
+            },
+            None => {
+                words_map.insert(k, Vec::new());
+            },
+        }
+    }
+}*/
+
+
 fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>, words_pos: &[WordPos],
                     words_intersect: &HashMap<&WordPos, Vec<&WordPos>>, words_used: &mut HashSet<&'a str>,
                     words_map_cache: &mut HashMap<String, Vec<&'a str>>, visited_nodes: &mut usize) -> bool {
@@ -111,11 +127,15 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
     let mut valid = false;
     let current_word_pos = words_pos.last().unwrap();
     let current_word_board = board.get_word(current_word_pos);
-    let valid_words = get_valid_words(words_len.get(&current_word_pos.len).unwrap_or(&EMPTY_VEC), current_word_board.as_str());
+    //let valid_words = get_valid_words(words_len.get(&current_word_pos.len).unwrap_or(&EMPTY_VEC), current_word_board.as_str());
     //let valid_words = get_valid_words_cache(words_map_cache, words_len.get(&current_word_pos.len).unwrap(), &current_word_board);
 
+    let valid_words = words_map_cache.entry(current_word_board.clone()).or_insert_with(|| {
+        get_valid_words(words_len.get(&current_word_pos.len).unwrap_or(&EMPTY_VEC), current_word_board.as_str())
+    }).clone();
+
     for current_word in valid_words {
-        if words_used.contains(&current_word) {
+        if words_used.contains(current_word) {
             continue;
         }
         board.set_word(current_word_pos, current_word);
@@ -132,9 +152,9 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
             let word_board_intersect = board.get_word(word_pos_intersect);
             let words_intersect_num: usize;
 
-            let valid_words_cached = words_map_cache.get(&word_board_intersect);
-            if valid_words_cached.is_some() {
-                words_intersect_num = valid_words_cached.unwrap().len();
+            // get valid words from cache if possible otherwise create new vec and update cache
+            if let Some(valid_words_cached) = words_map_cache.get(&word_board_intersect) {
+                words_intersect_num = valid_words_cached.len();
             }
             else {
                 let valid_words_intersect = get_valid_words(words_len.get(&word_pos_intersect.len).unwrap(), word_board_intersect.as_str());
@@ -143,6 +163,7 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
                 words_map_cache.insert(word_board_intersect, valid_words_intersect);
             }
 
+            // stop if there are no valid words
             if words_intersect_num == 0 {
                 sol = false;
                 break;  
@@ -155,7 +176,7 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
             if valid {
                 break;
             }
-            words_used.remove(&current_word);
+            words_used.remove(current_word);
         }
     }
 
@@ -164,15 +185,6 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
     }
 
     valid
-}
-
-
-fn get_valid_words_cache<'a>(words_map_cache: &'a mut HashMap<String, Vec<&'a str>>, available_words: &'a Vec<&str>, word_board: &String) -> &'a Vec<&'a str> {
-    let entry = words_map_cache.entry(word_board.clone()).or_insert_with(|| {
-        get_valid_words(available_words, word_board.as_str())
-    });
-    
-    entry
 }
 
 
