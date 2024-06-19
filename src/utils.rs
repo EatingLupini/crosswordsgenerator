@@ -24,7 +24,7 @@ impl WordPos {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Board {
     width: usize,
     height: usize,
