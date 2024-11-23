@@ -2,5 +2,5 @@ crosswords generator
 - [DONE] lista di parole da inserire, ogni elemento è una tupla: (x, y, dir, len)
 - [DONE] va ordinata la lista sulla lunghezza delle parole (meglio se crescente)
 - [DONE] estrai dalla coda l'elemento con lunghezza maggiore (potrebbe essere interessante estrarre l'elemento con più lettere mancanti)
-
+- gui
 
