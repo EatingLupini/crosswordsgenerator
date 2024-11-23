@@ -12,7 +12,6 @@ use rand::thread_rng;
 use rand::seq::SliceRandom;
 
 use clap::{command, Arg};
-
 use utils::{Board, WordPos, Dir};
 
 mod utils;
@@ -89,10 +88,10 @@ fn main() {
 
     // Create map (len -> words)
     let time_maplen = SystemTime::now();
-    let mut words_len: HashMap<usize, Vec<&str>> = HashMap::new();
+    let mut words_len: HashMap<usize, Vec<String>> = HashMap::new();
     for (key, _) in json.as_object().unwrap() {
         let len = key.len();
-        words_len.entry(len).or_insert_with(Vec::new).push(key);
+        words_len.entry(len).or_insert_with(Vec::new).push(key.clone());
     }
     // Randomize words
     if shuffle {
@@ -112,22 +111,22 @@ fn main() {
     words_pos.sort_by(|a, b| Ord::cmp(&a.len, &b.len));
 
     // create map of word_pos -> intersecting word_pos
-    let mut words_intersect: HashMap<&WordPos, Vec<&WordPos>> = HashMap::new();
-    for word_pos in &words_pos {
+    let mut words_intersect: HashMap<WordPos, Vec<WordPos>> = HashMap::new();
+    for word_pos in words_pos.iter() {
         match word_pos.dir {
             Dir::HOR => {
-                let wi: Vec<&WordPos> = words_pos.iter().filter(|wp|
+                let wi: Vec<WordPos> = words_pos.iter().filter(|wp|
                     wp.dir == Dir::VER &&
                     wp.y <= word_pos.y &&
-                    wp.y + wp.len > word_pos.y).collect();
-                words_intersect.insert(word_pos, wi);
+                    wp.y + wp.len > word_pos.y).cloned().collect();
+                words_intersect.insert(*word_pos, wi);
             },
             Dir::VER => {
-                let wi: Vec<&WordPos> = words_pos.iter().filter(|wp|
+                let wi: Vec<WordPos> = words_pos.iter().filter(|wp|
                         wp.dir == Dir::HOR &&
                         wp.x <= word_pos.x &&
-                        wp.x + wp.len > word_pos.x).collect();
-                words_intersect.insert(word_pos, wi);
+                        wp.x + wp.len > word_pos.x).cloned().collect();
+                words_intersect.insert(*word_pos, wi);
             }
         }
     }
@@ -140,36 +139,48 @@ fn main() {
 
     // recursive
     if mode == 0 {
+        //optick::start_capture();
         found = fill_board(&mut board, &words_len, &words_pos, &words_intersect,
             &mut HashSet::with_capacity(words_pos.len()),
             &mut HashMap::new(), &mut visited_nodes,
             rep_words);
+        //optick::stop_capture("fill_board");
     }
 
     // iter
     else if mode == 1 {
-        let mut wp = words_pos.clone();
+        /*let mut wp = words_pos.clone();
         found = fill_board_iter(&mut board, &words_len, &mut wp, &words_intersect,
                             &mut Vec::with_capacity(words_pos.len()),
                             &mut HashMap::new(), &mut visited_nodes,
-                            rep_words);
+                            rep_words);*/
     }
 
     // parallel
     else if mode == 2 {
         // Make a vector to hold the children which are spawned.
-        /*static NPROC: u8 = 4;
+        static NPROC: u8 = 4;
         let mut children = vec![];
         let words_map_cache: Arc<Mutex<HashMap<String, Vec<&str>>>> = Arc::new(Mutex::new(HashMap::new()));
 
         for i in 0..NPROC {
             let mut t_board = board.clone();
-            let t_words_len: HashMap<usize, Vec<&str>> = HashMap::new(); //words_len.clone();
+            let t_words_len: HashMap<usize, Vec<String>> = HashMap::new(); //words_len.clone();
             let mut t_words_pos: Vec<WordPos> = words_pos.clone();
             let t_words_interesect = words_intersect.clone();
-            let mut t_words_used: Vec<&str> = Vec::with_capacity(words_pos.len());
+            let mut t_words_used: HashSet<String> = HashSet::with_capacity(words_pos.len());
 
             children.push(thread::spawn(move || {
+                let found = fill_board(&mut t_board, &t_words_len, &mut t_words_pos, &t_words_interesect,
+                    &mut t_words_used,
+                    &mut HashMap::new(), &mut visited_nodes,
+                    rep_words);
+
+                println!("this is thread number {}", i);
+                }
+            ));
+
+            /*children.push(thread::spawn(move || {
                 let found = fill_board_iter(&mut t_board, &t_words_len, &mut t_words_pos, &t_words_interesect,
                     &mut t_words_used,
                     &mut HashMap::new(), &mut visited_nodes,
@@ -177,12 +188,12 @@ fn main() {
 
                 println!("this is thread number {}", i);
                 }
-            )); 
+            ));*/
         }
 
         for child in children {
             let _ = child.join();
-        }*/
+        }
     }
         
     if found {
@@ -208,10 +219,11 @@ fn load_words(path: &str) -> serde_json::Value {
 }
 
 
-fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>, words_pos: &[WordPos],
-                    words_intersect: &HashMap<&WordPos, Vec<&WordPos>>, words_used: &mut HashSet<&'a str>,
-                    words_map_cache: &mut HashMap<String, Vec<&'a str>>, visited_nodes: &mut usize,
+fn fill_board(board: &mut Board, words_len: &HashMap<usize, Vec<String>>, words_pos: &[WordPos],
+                    words_intersect: &HashMap<WordPos, Vec<WordPos>>, words_used: &mut HashSet<String>,
+                    words_map_cache: &mut HashMap<String, Vec<String>>, visited_nodes: &mut usize,
                     rep_words: bool) -> bool {
+    //optick::event!();
     if words_pos.is_empty() {
         return true;
     }
@@ -221,20 +233,20 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
 
     // get valid words from cache if possible otherwise update cache
     let valid_words = words_map_cache.entry(current_word_board.clone()).or_insert_with(|| {
-        get_valid_words(words_len.get(&current_word_pos.len).unwrap_or(&EMPTY_VEC), current_word_board.as_str())
+        get_valid_words(words_len.get(&current_word_pos.len).unwrap(), current_word_board.as_str())
     }).clone();
 
     // loop thorugh all valid words
     for current_word in valid_words {
         // check if the word has been used
         if !rep_words {
-            if words_used.contains(current_word) {
+            if words_used.contains(&current_word) {
                 continue;
             }
         }
 
         // set word in the board
-        board.set_word(current_word_pos, current_word);
+        board.set_word(current_word_pos, &current_word);
 
         // debug
         *visited_nodes += 1;
@@ -270,7 +282,7 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
         // continue recursively if there are intersecting words for each letter of the current word
         if sol {
             if !rep_words {
-                words_used.insert(current_word);
+                words_used.insert(current_word.clone());
             }
 
             valid = fill_board(board, words_len, &words_pos[..words_pos.len() - 1], words_intersect,
@@ -279,7 +291,7 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
                 break;
             }
             if !rep_words {
-                words_used.remove(current_word);
+                words_used.remove(&current_word);
             }
         }
     }
@@ -292,7 +304,7 @@ fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>
 }
 
 
-fn fill_board_iter<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>, words_pos: &mut Vec<WordPos>,
+/*fn fill_board_iter<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>, words_pos: &mut Vec<WordPos>,
                     words_intersect: &HashMap<&WordPos, Vec<&WordPos>>, words_used: &mut Vec<&'a str>,
                     words_map_cache: &mut HashMap<String, Vec<&'a str>>, visited_nodes: &mut usize,
                     rep_words: bool) -> bool {
@@ -420,13 +432,14 @@ fn fill_board_iter<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a 
     }
 
     true
-}
+}*/
 
 
-fn get_valid_words<'a>(words: &'a [&str], word_board: &str) -> Vec<&'a str> {
+fn get_valid_words(words: &Vec<String>, word_board: &str) -> Vec<String> {
+    optick::event!();
     words
         .iter()
-        .filter(|&&word| is_valid(word_board, word))
+        .filter(|word| is_valid(word_board, &word))
         .cloned()
         .collect()
 }
