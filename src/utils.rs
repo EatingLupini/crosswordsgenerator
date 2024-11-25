@@ -5,6 +5,12 @@ pub enum Dir {
     VER,
 }
 
+pub struct Solution {
+    pub found: bool,
+    pub time_elapsed: u128,
+    pub visited_nodes: u64,
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct WordPos {
     pub x: usize,
@@ -64,6 +70,7 @@ impl Board {
     }
 
     // Set char at given coordinate
+    #[allow(dead_code)]
     pub fn set(&mut self, x: usize, y: usize, val: char) {
         self.arr[self.width * y + x] = val;
     }

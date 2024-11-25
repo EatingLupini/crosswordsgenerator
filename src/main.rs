@@ -1,3 +1,8 @@
+// #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+// #![allow(rustdoc::missing_crate_level_docs)] // it's an example
+
+use eframe::egui;
+use utils::Solution;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
@@ -11,7 +16,10 @@ use clap::{command, Arg};
 
 use utils::{Board, WordPos, Dir};
 
+use gui::BaseApp;
+
 mod utils;
+mod gui;
 
 static EMPTY_VEC: Vec<&str> = Vec::new();
 
@@ -22,16 +30,25 @@ pub enum Fs {
     BWD
 }
 
+fn main() -> eframe::Result {
+    let ver: &str = "0.1";
 
-fn main() {
     // Check arguments
     let args = command!().about("Crosswords Generator v0.1\nSmall application to fill a provided Crossword Board.")
+    .arg(
+        Arg::new("no-gui").short('g').long("no-gui")
+        .help("Use CLI to generate crosswords.")
+        .num_args(0..=1)
+        .value_parser(["true", "false"])
+        .default_value("false")
+        .default_missing_value("true")
+    )
     .arg(
         Arg::new("size").short('s').long("size")
         .help("Size of the board.")
         .num_args(2)
         .value_parser(clap::value_parser!(usize))
-        .default_values(["4", "4"])
+        .default_values(["5", "5"])
         .conflicts_with("board")
     )
     .arg(
@@ -56,11 +73,12 @@ fn main() {
     )
     .get_matches();
 
-
     // CROSSWORDS GENERATOR
-    println!("Crosswords Generator v0.1");
+    println!("Crosswords Generator v{}", ver);
 
     // Settings
+    let no_gui = args.get_one::<String>("no-gui").unwrap()
+        .parse::<bool>().unwrap_or_else(|e| panic!("Argument 'no-gui' error: {}", e));
     let size: Vec<usize> = args.get_many("size").unwrap().copied().collect();
     let board_w = *size.get(0).unwrap();
     let board_h = *size.get(1).unwrap();
@@ -70,14 +88,6 @@ fn main() {
     let rep_words = args.get_one::<String>("repeat-words").unwrap()
         .parse::<bool>().unwrap_or_else(|e| panic!("Argument 'repeat-words' error: {}", e));
     
-    println!("\nSettings:");
-    println!("- size: {:?}", size);
-    println!("- board: {:?}", board_path);
-    println!("- shuffle: {}", shuffle);
-    println!("- repeat-words: {}", rep_words);
-    println!();
-
-
     // Load json words and definitions
     let time_json = SystemTime::now();
     let json = load_words("./data/words.txt");
@@ -90,18 +100,56 @@ fn main() {
         let len = key.len();
         words_len.entry(len).or_insert_with(Vec::new).push(key);
     }
+    println!("Time to create the map (len->words): {} ms", time_maplen.elapsed().unwrap().as_millis());
+    
+    // CLI
+    if no_gui {
+        println!("\nSettings:");
+        println!("- size: {:?}x{:?}", board_w, board_h);
+        println!("- board: {:?}", board_path);
+        println!("- shuffle: {}", shuffle);
+        println!("- repeat-words: {}", rep_words);
+        println!();
+        
+        // Create board
+        let mut board = Board::new(board_w, board_h);
+        board.set(0, 0, '#');
+        
+        // Find solution
+        let sol = generate(&mut board, words_len, shuffle, rep_words);
+
+        // Solution found
+        if sol.found {
+            board.print();
+            println!("Time to fill the board: {} ms", sol.time_elapsed);
+            print_definitions(&board, &json);
+        }
+        // Solution not found
+        else {
+            println!("No solution found in: {} ms", sol.time_elapsed);
+        }
+    
+        // Print Visited Nodes
+        println!("\nSTATS");
+        println!("Visited nodes: {}", sol.visited_nodes);
+
+        Ok(())
+    }
+
+    // GUI
+    else {
+        init_gui()
+    }
+}
+
+
+fn generate(board: &mut Board, mut words_len: HashMap<usize, Vec<&str>>, shuffle: bool, rep_words: bool) -> Solution {
     // Randomize words
     if shuffle {
         for words in words_len.values_mut() {
             words.shuffle(&mut thread_rng());
         }
     }
-    println!("Time to create the map (len->words): {} ms", time_maplen.elapsed().unwrap().as_millis());
-    
-
-    // Board
-    let mut board = Board::new(board_w, board_h);
-    // board.set(0, 0, '#');
 
     // Create list of missing word positions
     let mut words_pos = board.get_words_pos();
@@ -129,29 +177,40 @@ fn main() {
     }
 
     // fill board
-    let time_fill = SystemTime::now();
     let found;
-    let mut visited_nodes: usize = 0;
+    let time_fill = SystemTime::now();
+    let mut visited_nodes: u64 = 0;
 
     // recursive
-    found = fill_board(&mut board, &words_len, &words_pos, &words_intersect,
+    found = fill_board(board, &words_len, &words_pos, &words_intersect,
         &mut HashSet::with_capacity(words_pos.len()),
         &mut HashMap::new(), &mut visited_nodes,
         rep_words);
-        
-    if found {
-        board.print();
-        println!("Time to fill the board: {} ms", time_fill.elapsed().unwrap().as_millis());
 
-        // print definitions
-        print_definitions(&board, &words_pos, &json);
+    Solution {
+        found,
+        time_elapsed: time_fill.elapsed().unwrap().as_millis(),
+        visited_nodes,
     }
-    else {
-        println!("No solution found in: {} ms", time_fill.elapsed().unwrap().as_millis());
-    }
+}
 
-    println!("\nSTATS");
-    println!("Visited nodes: {}", visited_nodes);
+
+fn init_gui() -> eframe::Result {
+    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_inner_size([640.0, 480.0]),
+        ..Default::default()
+    };
+    eframe::run_native(
+        "My egui App",
+        options,
+        Box::new(|cc| {
+            // This gives us image support:
+            egui_extras::install_image_loaders(&cc.egui_ctx);
+
+            Ok(Box::<BaseApp>::default())
+        }),
+    )
 }
 
 
@@ -164,7 +223,7 @@ fn load_words(path: &str) -> serde_json::Value {
 
 fn fill_board<'a>(board: &mut Board, words_len: &'a HashMap<usize, Vec<&'a str>>, words_pos: &[WordPos],
                     words_intersect: &HashMap<&WordPos, Vec<&WordPos>>, words_used: &mut HashSet<&'a str>,
-                    words_map_cache: &mut HashMap<String, Vec<&'a str>>, visited_nodes: &mut usize,
+                    words_map_cache: &mut HashMap<String, Vec<&'a str>>, visited_nodes: &mut u64,
                     rep_words: bool) -> bool {
     if words_pos.is_empty() {
         return true;
@@ -270,10 +329,12 @@ fn is_valid(word_board: &str, word: &str) -> bool {
 }
 
 
-fn print_definitions(board: &Board, words_pos: &Vec<WordPos>, json: &serde_json::Value) {
+fn print_definitions(board: &Board, json: &serde_json::Value) {
+    let words_pos = board.get_words_pos();
+
     println!("\nDEFS");
     for word_pos in words_pos {
-        let word = board.get_word(word_pos);
+        let word = board.get_word(&word_pos);
         let defs = json.get(word).unwrap().as_array().unwrap();
 
         let random_index = rand::thread_rng().gen_range(0..defs.len());
