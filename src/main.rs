@@ -31,7 +31,7 @@ pub enum Fs {
 }
 
 fn main() -> eframe::Result {
-    let ver: &str = "0.1";
+    let ver: &str = "0.2";
 
     // Check arguments
     let args = command!().about("Crosswords Generator v0.1\nSmall application to fill a provided Crossword Board.")

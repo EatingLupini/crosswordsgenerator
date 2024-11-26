@@ -2,5 +2,77 @@ crosswords generator
 - [DONE] lista di parole da inserire, ogni elemento è una tupla: (x, y, dir, len)
 - [DONE] va ordinata la lista sulla lunghezza delle parole (meglio se crescente)
 - [DONE] estrai dalla coda l'elemento con lunghezza maggiore (potrebbe essere interessante estrarre l'elemento con più lettere mancanti)
-- gui
+- [DONE] aggiungere il tasto resetta griglia
+- avviare in un thread separato il processo per trovare la soluzione
+- disabilitare tutti i tasti durante la ricerca della soluzione
 
+
+use eframe::egui;
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
+
+struct MyApp {
+    data: Arc<Mutex<Option<String>>>, // Shared data for thread communication
+    sender: Option<mpsc::Sender<()>>, // Channel to trigger computation
+}
+
+impl MyApp {
+    fn new() -> Self {
+        let (sender, receiver) = mpsc::channel();
+        let data = Arc::new(Mutex::new(None));
+
+        // Clone shared data for the thread
+        let thread_data = Arc::clone(&data);
+
+        thread::spawn(move || {
+            while let Ok(()) = receiver.recv() {
+                // Perform long computation
+                let result = long_computation();
+                // Update shared data
+                *thread_data.lock().unwrap() = Some(result);
+            }
+        });
+
+        Self {
+            data,
+            sender: Some(sender),
+        }
+    }
+}
+
+fn long_computation() -> String {
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    "Computation Result".to_owned()
+}
+
+impl eframe::App for MyApp {
+    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            if ui.button("Start Computation").clicked() {
+                if let Some(sender) = &self.sender {
+                    sender.send(()).unwrap(); // Signal the thread to start computation
+                }
+            }
+
+            // Display the result
+            let result = self.data.lock().unwrap();
+            if let Some(ref data) = *result {
+                ui.label(format!("Result: {}", data));
+            } else {
+                ui.label("No result yet.");
+            }
+        });
+
+        // Request a repaint to continuously check for updates
+        ctx.request_repaint();
+    }
+}
+
+fn main() {
+    let options = eframe::NativeOptions::default();
+    eframe::run_native(
+        "Threaded Computation Example",
+        options,
+        Box::new(|_cc| Box::new(MyApp::new())),
+    );
+}

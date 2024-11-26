@@ -202,43 +202,54 @@ impl<'a> eframe::App for BaseApp<'a> {
                         
                     });
                     strip.cell(|ui| {
+                        let button_width = 128.0;
+                        let padding = (ui.available_width() - button_width * 2.0) / 2.0;
                         ui.separator();
                         ui.vertical_centered(|ui| {
                             ui.add_space(4.0);
-                            let response = ui.add_sized((128.0, 48.0), egui::Button::new("Generate!"));
-                            if response.clicked() {
-                                // Clean grid
-                                for j in 0..self.grid.len() {
-                                    let v = &mut self.grid[j];
-                                    for i in 0..v.len() {
-                                        if v[i] != '#' {
-                                            v[i] = ' ';
+                            ui.horizontal(|ui| {
+                                ui.add_space(padding);
+
+                                let response = ui.add_sized((128.0, 48.0), egui::Button::new("Generate!"));
+                                if response.clicked() {
+                                    // Clean grid
+                                    for j in 0..self.grid.len() {
+                                        let v = &mut self.grid[j];
+                                        for i in 0..v.len() {
+                                            if v[i] != '#' {
+                                                v[i] = ' ';
+                                            }
                                         }
                                     }
-                                }
-
-                                // Create board
-                                let mut board = Board::new(self.width, self.height);
-
-                                // Add black cells
-                                for j in 0..self.grid.len() {
-                                    let v = &self.grid[j];
-                                    for i in 0..v.len() {
-                                        board.set(i, j, v[i]);
+    
+                                    // Create board
+                                    let mut board = Board::new(self.width, self.height);
+    
+                                    // Add black cells
+                                    for j in 0..self.grid.len() {
+                                        let v = &self.grid[j];
+                                        for i in 0..v.len() {
+                                            board.set(i, j, v[i]);
+                                        }
                                     }
-                                }
-
-                                // Process
-                                self.result = Some(generate(&mut board, self.words_len.clone(), self.shuffle, self.rep_words));
-
-                                // Update grid with board data
-                                for j in 0..self.grid.len() {
-                                    let v = &mut self.grid[j];
-                                    for i in 0..v.len() {
-                                        v[i] = board.get(i, j);
+    
+                                    // Process
+                                    self.result = Some(generate(&mut board, self.words_len.clone(), self.shuffle, self.rep_words));
+    
+                                    // Update grid with board data
+                                    for j in 0..self.grid.len() {
+                                        let v = &mut self.grid[j];
+                                        for i in 0..v.len() {
+                                            v[i] = board.get(i, j);
+                                        }
                                     }
+                                };
+    
+                                let response = ui.add_sized((128.0, 48.0), egui::Button::new("Reset"));
+                                if response.clicked() {
+                                    self.grid = vec![vec![' '; self.width]; self.height];
                                 }
-                            };
+                            });
                         });
                     });
                 }
