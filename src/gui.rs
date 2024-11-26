@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::RangeInclusive};
 
 use eframe::egui::{self, Frame, Label, RichText, Sense, UiBuilder, Widget};
 use egui::Color32;
@@ -11,10 +11,10 @@ use crate::{generate, utils::{Board, Solution}};
 pub struct BaseApp<'a> {
     width: usize,
     height: usize,
+    grid: Vec<Vec<char>>,
     words_len: HashMap<usize, Vec<&'a str>>,
     shuffle: bool,
     rep_words: bool,
-    selected: bool,
     modal: Modal,
     result: Option<Solution>,
 }
@@ -26,10 +26,10 @@ impl<'a> BaseApp<'a> {
         Self {
             width: 5,
             height: 5,
+            grid: vec![vec![' '; 5]; 5],
             words_len,
             shuffle: false,
             rep_words: false,
-            selected: false,
             modal,
             result: None,
         }
@@ -103,8 +103,42 @@ impl<'a> eframe::App for BaseApp<'a> {
                             .show(ui, |ui| {
                                 ui.label("Size:");
                                 ui.horizontal(|ui| {
-                                    ui.add(egui::DragValue::new(&mut self.width));
-                                    ui.add(egui::DragValue::new(&mut self.height));
+                                    let resp_w = ui.add(
+                                        egui::DragValue::new(&mut self.width)
+                                            .range(RangeInclusive::new(2, 100)));
+                                    let resp_h = ui.add(
+                                        egui::DragValue::new(&mut self.height)
+                                            .range(RangeInclusive::new(2, 100)));
+
+                                    if resp_w.changed() {
+                                        let diff: i32 = self.width as i32 - self.grid.first().unwrap().len() as i32;
+                                        for v in self.grid.iter_mut() {
+                                            for _ in 0..diff.abs() {
+                                                if diff < 0 {
+                                                    v.pop();
+                                                }
+                                                else {
+                                                    v.push(' ');
+                                                }
+                                            }
+                                        }
+                                        println!("{:?}", diff);
+                                        println!("{:?}", self.grid);
+                                    }
+
+                                    if resp_h.changed() {
+                                        let diff: i32 = self.height as i32 - self.grid.len() as i32;
+                                        for _ in 0..diff.abs() {
+                                            if diff < 0 {
+                                                self.grid.pop();
+                                            }
+                                            else {
+                                                self.grid.push(vec![' '; self.width]);
+                                            }
+                                        }
+                                        println!("{:?}", diff);
+                                        println!("{:?}", self.grid);
+                                    }
                                 });
                                 ui.end_row();
 
@@ -125,9 +159,10 @@ impl<'a> eframe::App for BaseApp<'a> {
                         ui.separator();
                         egui::ScrollArea::both().auto_shrink([false; 2]).show(ui, |ui| {
                             ui.vertical_centered(|ui| {
-                                for _ in 0..self.height {
+                                for v in self.grid.iter_mut() {
                                     ui.horizontal(|ui| {
-                                        for _ in 0..self.width {
+                                        for i in 0..v.len() {
+                                            let e = v[i];
                                             let response = ui
                                             .scope_builder(
                                                 UiBuilder::new()
@@ -137,7 +172,7 @@ impl<'a> eframe::App for BaseApp<'a> {
                                                     let visuals = ui.style().interact(&response);
     
                                                     Frame::canvas(ui.style())
-                                                        .fill(if self.selected {Color32::BLACK} else {Color32::WHITE})
+                                                        .fill(if e == '#' {Color32::BLACK} else {Color32::WHITE})
                                                         .stroke(visuals.bg_stroke)
                                                         .inner_margin(ui.spacing().menu_margin)
                                                         .show(ui, |ui| {
@@ -146,7 +181,7 @@ impl<'a> eframe::App for BaseApp<'a> {
 
                                                             ui.vertical_centered(|ui| {
                                                                 Label::new(
-                                                                    RichText::new(format!(""))
+                                                                    RichText::new(if e != '#' {e} else {' '})
                                                                         .color(Color32::BLACK)
                                                                         .size(16.0)
                                                                 ).ui(ui);
@@ -157,7 +192,7 @@ impl<'a> eframe::App for BaseApp<'a> {
                                             .response;
     
                                             if response.clicked() {
-                                                self.selected = !self.selected;
+                                                v[i] = if e == '#' {' '} else {'#'};
                                             }
                                         }
                                     });
@@ -172,8 +207,37 @@ impl<'a> eframe::App for BaseApp<'a> {
                             ui.add_space(4.0);
                             let response = ui.add_sized((128.0, 48.0), egui::Button::new("Generate!"));
                             if response.clicked() {
+                                // Clean grid
+                                for j in 0..self.grid.len() {
+                                    let v = &mut self.grid[j];
+                                    for i in 0..v.len() {
+                                        if v[i] != '#' {
+                                            v[i] = ' ';
+                                        }
+                                    }
+                                }
+
+                                // Create board
                                 let mut board = Board::new(self.width, self.height);
+
+                                // Add black cells
+                                for j in 0..self.grid.len() {
+                                    let v = &self.grid[j];
+                                    for i in 0..v.len() {
+                                        board.set(i, j, v[i]);
+                                    }
+                                }
+
+                                // Process
                                 self.result = Some(generate(&mut board, self.words_len.clone(), self.shuffle, self.rep_words));
+
+                                // Update grid with board data
+                                for j in 0..self.grid.len() {
+                                    let v = &mut self.grid[j];
+                                    for i in 0..v.len() {
+                                        v[i] = board.get(i, j);
+                                    }
+                                }
                             };
                         });
                     });
