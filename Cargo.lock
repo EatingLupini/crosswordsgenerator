@@ -833,6 +833,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "eframe",
+ "egui-modal",
  "egui_extras",
  "env_logger",
  "rand",
@@ -970,6 +971,15 @@ dependencies = [
  "epaint",
  "log",
  "nohash-hasher",
+]
+
+[[package]]
+name = "egui-modal"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "297fa5697b1048198cc12f5f101312a6fcae42e55a637c861a316d6028797e42"
+dependencies = [
+ "egui",
 ]
 
 [[package]]
@@ -3386,7 +3396,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

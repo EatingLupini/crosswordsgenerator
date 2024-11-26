@@ -5,6 +5,7 @@ pub enum Dir {
     VER,
 }
 
+#[derive(Debug)]
 pub struct Solution {
     pub found: bool,
     pub time_elapsed: u128,

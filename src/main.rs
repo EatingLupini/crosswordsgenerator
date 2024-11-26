@@ -139,25 +139,25 @@ fn main() -> eframe::Result {
 
     // GUI
     else {
-        init_gui(ver)
+        init_gui(ver, words_len)
     }
 }
 
 
-fn init_gui(ver: &str) -> eframe::Result {
+fn init_gui(ver: &str, words_len: HashMap<usize, Vec<&str>>) -> eframe::Result {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([640.0, 480.0]),
         ..Default::default()
     };
+
     eframe::run_native(
         format!("Crosswords Generator v{}", ver).as_str(),
         options,
         Box::new(|cc| {
-            // This gives us image support:
-            egui_extras::install_image_loaders(&cc.egui_ctx);
-
-            Ok(Box::<BaseApp>::default())
+            egui_extras::install_image_loaders(&cc.egui_ctx); // support for images
+            //Ok(Box::<BaseApp>::default())
+            Ok(Box::new(BaseApp::new(&cc.egui_ctx, words_len)))
         }),
     )
 }
