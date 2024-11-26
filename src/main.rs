@@ -73,9 +73,6 @@ fn main() -> eframe::Result {
     )
     .get_matches();
 
-    // CROSSWORDS GENERATOR
-    println!("Crosswords Generator v{}", ver);
-
     // Settings
     let no_gui = args.get_one::<String>("no-gui").unwrap()
         .parse::<bool>().unwrap_or_else(|e| panic!("Argument 'no-gui' error: {}", e));
@@ -88,6 +85,10 @@ fn main() -> eframe::Result {
     let rep_words = args.get_one::<String>("repeat-words").unwrap()
         .parse::<bool>().unwrap_or_else(|e| panic!("Argument 'repeat-words' error: {}", e));
     
+
+    // CROSSWORDS GENERATOR
+    println!("Crosswords Generator v{}", ver);
+
     // Load json words and definitions
     let time_json = SystemTime::now();
     let json = load_words("./data/words.txt");
@@ -138,8 +139,34 @@ fn main() -> eframe::Result {
 
     // GUI
     else {
-        init_gui()
+        init_gui(ver)
     }
+}
+
+
+fn init_gui(ver: &str) -> eframe::Result {
+    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_inner_size([640.0, 480.0]),
+        ..Default::default()
+    };
+    eframe::run_native(
+        format!("Crosswords Generator v{}", ver).as_str(),
+        options,
+        Box::new(|cc| {
+            // This gives us image support:
+            egui_extras::install_image_loaders(&cc.egui_ctx);
+
+            Ok(Box::<BaseApp>::default())
+        }),
+    )
+}
+
+
+fn load_words(path: &str) -> serde_json::Value {
+    let content: String = fs::read_to_string(path).expect("Unable to read text file");
+    let json: serde_json::Value = serde_json::from_str(content.as_str()).expect("JSON was not well-formatted");
+    json
 }
 
 
@@ -192,32 +219,6 @@ fn generate(board: &mut Board, mut words_len: HashMap<usize, Vec<&str>>, shuffle
         time_elapsed: time_fill.elapsed().unwrap().as_millis(),
         visited_nodes,
     }
-}
-
-
-fn init_gui() -> eframe::Result {
-    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([640.0, 480.0]),
-        ..Default::default()
-    };
-    eframe::run_native(
-        "My egui App",
-        options,
-        Box::new(|cc| {
-            // This gives us image support:
-            egui_extras::install_image_loaders(&cc.egui_ctx);
-
-            Ok(Box::<BaseApp>::default())
-        }),
-    )
-}
-
-
-fn load_words(path: &str) -> serde_json::Value {
-    let content: String = fs::read_to_string(path).expect("Unable to read text file");
-    let json: serde_json::Value = serde_json::from_str(content.as_str()).expect("JSON was not well-formatted");
-    json
 }
 
 
