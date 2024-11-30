@@ -5,33 +5,39 @@ use egui::Color32;
 use egui_extras::{Size, StripBuilder};
 use egui_modal::{Icon, Modal};
 
-use crate::{generate, utils::{Board, Solution}};
+use crate::{generate, get_definitions, utils::{Board, Dir, Solution, WordPos}};
 
 
 pub struct BaseApp<'a> {
+    words_len: HashMap<usize, Vec<&'a str>>,
+    words_def: &'a serde_json::Value,
+
     width: usize,
     height: usize,
     grid: Vec<Vec<char>>,
-    words_len: HashMap<usize, Vec<&'a str>>,
     shuffle: bool,
     rep_words: bool,
     modal: Modal,
     result: Option<Solution>,
+    definitions: Vec<(WordPos, String)>,
 }
 
 
 impl<'a> BaseApp<'a> {
-    pub fn new(ctx: &egui::Context, words_len: HashMap<usize, Vec<&'a str>>) -> Self {
+    pub fn new(ctx: &egui::Context, words_len: HashMap<usize, Vec<&'a str>>, words_def: &'a serde_json::Value) -> Self {
         let modal = Modal::new(ctx, "modal_result");
         Self {
+            words_len,
+            words_def,
+
             width: 5,
             height: 5,
             grid: vec![vec![' '; 5]; 5],
-            words_len,
             shuffle: false,
             rep_words: false,
             modal,
             result: None,
+            definitions: Vec::new(),
         }
     }
 }
@@ -67,7 +73,6 @@ impl<'a> eframe::App for BaseApp<'a> {
                 self.modal.frame(ui, |ui| {
                     ui.label(format!("Visited Nodes: {}", sol.visited_nodes));
                     ui.label(format!("Time Elapsed: {} ms", sol.time_elapsed));
-                    //self.modal.body(ui, format!("This is a modal. {:?}", sol));
                 });
                 self.modal.buttons(ui, |ui| {
                     if self.modal.button(ui, "Close").clicked() {
@@ -122,8 +127,6 @@ impl<'a> eframe::App for BaseApp<'a> {
                                                 }
                                             }
                                         }
-                                        println!("{:?}", diff);
-                                        println!("{:?}", self.grid);
                                     }
 
                                     if resp_h.changed() {
@@ -136,8 +139,6 @@ impl<'a> eframe::App for BaseApp<'a> {
                                                 self.grid.push(vec![' '; self.width]);
                                             }
                                         }
-                                        println!("{:?}", diff);
-                                        println!("{:?}", self.grid);
                                     }
                                 });
                                 ui.end_row();
@@ -159,10 +160,27 @@ impl<'a> eframe::App for BaseApp<'a> {
                         ui.separator();
                         egui::ScrollArea::both().auto_shrink([false; 2]).show(ui, |ui| {
                             ui.vertical_centered(|ui| {
-                                for v in self.grid.iter_mut() {
+                                for j in 0..self.grid.len() {
+                                    let v = &mut self.grid[j];
                                     ui.horizontal(|ui| {
                                         for i in 0..v.len() {
                                             let e = v[i];
+                                            
+                                            // Build definitions string
+                                            let mut def_string: String = "".to_owned();
+                                            if !self.definitions.is_empty() {
+                                                for (wp, def) in &self.definitions {
+                                                    if wp.x == i && wp.y == j {
+                                                        if !def_string.is_empty() {
+                                                            def_string.push_str("\n");
+                                                        }
+                                                        def_string.push_str(if wp.dir == Dir::HOR {"Hor: "} else {"Ver: "});
+                                                        def_string.push_str(def);
+                                                    }
+                                                }
+                                            }
+
+                                            // Draw cell
                                             let response = ui
                                             .scope_builder(
                                                 UiBuilder::new()
@@ -170,7 +188,7 @@ impl<'a> eframe::App for BaseApp<'a> {
                                                 |ui| {
                                                     let response = ui.response();
                                                     let visuals = ui.style().interact(&response);
-    
+                                                    
                                                     Frame::canvas(ui.style())
                                                         .fill(if e == '#' {Color32::BLACK} else {Color32::WHITE})
                                                         .stroke(visuals.bg_stroke)
@@ -178,21 +196,37 @@ impl<'a> eframe::App for BaseApp<'a> {
                                                         .show(ui, |ui| {
                                                             ui.set_width(16.0);
                                                             ui.set_height(16.0);
-
+                                                            
                                                             ui.vertical_centered(|ui| {
-                                                                Label::new(
+                                                                let response = Label::new(
                                                                     RichText::new(if e != '#' {e} else {' '})
                                                                         .color(Color32::BLACK)
                                                                         .size(16.0)
                                                                 ).ui(ui);
+                                                                
+                                                                // switch from black to white and viceversa
+                                                                if response.clicked() {
+                                                                    v[i] = if e == '#' {' '} else {'#'};
+                                                                }
+                                                                
+                                                                // show definition
+                                                                if e != '#' && !def_string.is_empty() {
+                                                                    response.on_hover_text(&def_string);
+                                                                }
                                                             });
                                                         });
                                                 },
                                             )
                                             .response;
-    
+                                            
+                                            // switch from black to white and viceversa
                                             if response.clicked() {
                                                 v[i] = if e == '#' {' '} else {'#'};
+                                            }
+
+                                            // show definition
+                                            if e != '#' && !def_string.is_empty()  {
+                                                response.on_hover_text(&def_string);
                                             }
                                         }
                                     });
@@ -210,6 +244,7 @@ impl<'a> eframe::App for BaseApp<'a> {
                             ui.horizontal(|ui| {
                                 ui.add_space(padding);
 
+                                // GENERATE
                                 let response = ui.add_sized((128.0, 48.0), egui::Button::new("Generate!"));
                                 if response.clicked() {
                                     // Clean grid
@@ -235,6 +270,11 @@ impl<'a> eframe::App for BaseApp<'a> {
     
                                     // Process
                                     self.result = Some(generate(&mut board, self.words_len.clone(), self.shuffle, self.rep_words));
+
+                                    // Update definitions
+                                    if self.result.as_ref().unwrap().found {
+                                        self.definitions = get_definitions(&board, self.words_def);
+                                    }
     
                                     // Update grid with board data
                                     for j in 0..self.grid.len() {
@@ -245,9 +285,11 @@ impl<'a> eframe::App for BaseApp<'a> {
                                     }
                                 };
     
+                                // RESET
                                 let response = ui.add_sized((128.0, 48.0), egui::Button::new("Reset"));
                                 if response.clicked() {
                                     self.grid = vec![vec![' '; self.width]; self.height];
+                                    self.definitions.clear();
                                 }
                             });
                         });

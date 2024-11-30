@@ -1,5 +1,4 @@
 // #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
-// #![allow(rustdoc::missing_crate_level_docs)] // it's an example
 
 use eframe::egui;
 use utils::Solution;
@@ -31,10 +30,10 @@ pub enum Fs {
 }
 
 fn main() -> eframe::Result {
-    let ver: &str = "0.2";
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
 
     // Check arguments
-    let args = command!().about("Crosswords Generator v0.1\nSmall application to fill a provided Crossword Board.")
+    let args = command!().about(format!("Crosswords Generator v{}\nSmall application to fill a provided Crossword Board.", VERSION))
     .arg(
         Arg::new("no-gui").short('g').long("no-gui")
         .help("Use CLI to generate crosswords.")
@@ -87,7 +86,7 @@ fn main() -> eframe::Result {
     
 
     // CROSSWORDS GENERATOR
-    println!("Crosswords Generator v{}", ver);
+    println!("Crosswords Generator v{}", VERSION);
 
     // Load json words and definitions
     let time_json = SystemTime::now();
@@ -114,7 +113,7 @@ fn main() -> eframe::Result {
         
         // Create board
         let mut board = Board::new(board_w, board_h);
-        board.set(0, 0, '#');
+        //board.set(0, 0, '#');
         
         // Find solution
         let sol = generate(&mut board, words_len, shuffle, rep_words);
@@ -123,7 +122,7 @@ fn main() -> eframe::Result {
         if sol.found {
             board.print();
             println!("Time to fill the board: {} ms", sol.time_elapsed);
-            print_definitions(&board, &json);
+            print_definitions(get_definitions(&board, &json));
         }
         // Solution not found
         else {
@@ -139,12 +138,12 @@ fn main() -> eframe::Result {
 
     // GUI
     else {
-        init_gui(ver, words_len)
+        init_gui(VERSION, words_len, &json)
     }
 }
 
 
-fn init_gui(ver: &str, words_len: HashMap<usize, Vec<&str>>) -> eframe::Result {
+fn init_gui(ver: &str, words_len: HashMap<usize, Vec<&str>>, definitions: &serde_json::Value) -> eframe::Result {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([640.0, 480.0]),
@@ -157,7 +156,7 @@ fn init_gui(ver: &str, words_len: HashMap<usize, Vec<&str>>) -> eframe::Result {
         Box::new(|cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx); // support for images
             //Ok(Box::<BaseApp>::default())
-            Ok(Box::new(BaseApp::new(&cc.egui_ctx, words_len)))
+            Ok(Box::new(BaseApp::new(&cc.egui_ctx, words_len, definitions)))
         }),
     )
 }
@@ -330,15 +329,27 @@ fn is_valid(word_board: &str, word: &str) -> bool {
 }
 
 
-fn print_definitions(board: &Board, json: &serde_json::Value) {
+fn get_definitions(board: &Board, json: &serde_json::Value) -> Vec<(WordPos, String)> {
+    let mut list_defs: Vec<(WordPos, String)> = Vec::new();
     let words_pos = board.get_words_pos();
 
-    println!("\nDEFS");
     for word_pos in words_pos {
         let word = board.get_word(&word_pos);
         let defs = json.get(word).unwrap().as_array().unwrap();
 
         let random_index = rand::thread_rng().gen_range(0..defs.len());
-        println!("{:?}: {}", word_pos, defs.get(random_index).unwrap());
+        let def_string = defs.get(random_index).unwrap().to_string();
+
+        list_defs.push((word_pos, def_string));
+    }
+
+    list_defs
+}
+
+
+fn print_definitions(defs: Vec<(WordPos, String)>) {
+    println!("\nDEFINITIONS");
+    for def in defs {
+        println!("{:?}: {}", def.0, def.1);
     }
 }
