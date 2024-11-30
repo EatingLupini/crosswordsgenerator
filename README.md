@@ -21,6 +21,8 @@
 ## Features
 Fast and simple.
 
+![Screenshot 5](screenshots/screen5.png)
+
 ## Getting Started
 
 ### Prerequisites
